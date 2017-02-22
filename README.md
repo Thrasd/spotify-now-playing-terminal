@@ -1,0 +1,1 @@
+spotify-now-playing-terminal
