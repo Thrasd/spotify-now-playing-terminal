@@ -1,0 +1,10 @@
+# VirtualEnv
+env/
+venv/
+dbus-venv/
+
+# PyCharm
+.idea/
+
+# Python
+__pycache__/
