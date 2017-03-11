@@ -1,42 +1,16 @@
 import curses
-import locale
 from curses import wrapper
 from time import sleep
 
-import dbus
-from dbus import DBusException
 from pyfiglet import Figlet
 
-# Make sure we can handle special characters
-locale.setlocale(locale.LC_ALL, '')
-code = locale.getpreferredencoding()
+from dbus_api import DbusAPI
 
-# Initialize dbus session
-try:
-    session_bus = dbus.SessionBus()
-    spotify_bus = session_bus.get_object("org.mpris.MediaPlayer2.spotify", "/org/mpris/MediaPlayer2")
-    spotify_properties = dbus.Interface(spotify_bus, "org.freedesktop.DBus.Properties")
-except DBusException:
-    print("Could not find spotify, are you sure it is running?")
-    exit()
+dbus_api = DbusAPI()
 
 # Figlet
 figlet = Figlet(font='small')
 now_playing_text = figlet.renderText('Now Playing').split('\n')
-
-
-def get_info():
-    # Get meta-data from spotify
-    metadata = spotify_properties.Get("org.mpris.MediaPlayer2.Player", "Metadata")
-
-    # Extract artists and title
-    artists = ",".join([x for x in metadata['xesam:artist']]) + '   '
-    title = metadata['xesam:title'] + '   '
-    track_id = metadata['mpris:trackid'].split(':')[-1]
-
-    # Return information
-    return artists.encode(code), title.encode(code), track_id
-
 
 pos_info = {'track_id': ''}
 
@@ -96,17 +70,19 @@ def main(stdscr):
             row_index += 1
 
         # Get song info
-        artist, title, track_id = get_info()
+        artist, title, track_id = dbus_api.get_spotify_now_playing()
 
         # Write artist
+        row_index -= 1
         artist_text, artist_pos = get_position(width, artist, track_id)
-        stdscr.addnstr(row_index - 1, artist_pos, artist_text, width - 1)
+        stdscr.addnstr(row_index, artist_pos, artist_text, width - 1)
 
         # Write title
+        row_index += 1
         title_text, title_pos = get_position(width, title, track_id)
         stdscr.addnstr(row_index, title_pos, title_text, width - 1)
 
-        # TODO Do we need to refresh?
+        # Refresh to draw on screen
         stdscr.refresh()
 
         # TODO define the scroll speed of the text and how fast we retrieve data from spotify
