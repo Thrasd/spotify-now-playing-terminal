@@ -12,7 +12,7 @@ class DbusAPI:
         self.spotify_bus = None
         self.spotify_properties = None
         self.has_loaded_spotify = False
-        self.has_not_loaded_spotify_message = ("[Spotify not found]", "[Are you sure spotify is running?]", "spotify-not-running",)
+        self.has_not_loaded_spotify_message = ("[Spotify not found]", "[Are you sure spotify is running?]", "spotify-not-running", "",)
 
         # Stupid special characters, why can't we just use ASCII? :(
         locale.setlocale(locale.LC_ALL, '')
@@ -39,9 +39,10 @@ class DbusAPI:
         if not self.has_loaded_spotify:
             return self.has_not_loaded_spotify_message
 
-        # Attempt to get metadata
         try:
+            # Attempt to get metadata
             metadata = self.spotify_properties.Get("org.mpris.MediaPlayer2.Player", "Metadata")
+            playback_status = self.spotify_properties.Get("org.mpris.MediaPlayer2.Player", "PlaybackStatus")
         except DBusException:
             self.has_loaded_spotify = False
             return self.has_not_loaded_spotify_message
@@ -51,5 +52,5 @@ class DbusAPI:
         title = metadata['xesam:title']
         track_id = metadata['mpris:trackid'].split(':')[-1]
 
-        # Returns Artist, Title, TrackId
-        return artists.encode(self.language_code), title.encode(self.language_code), track_id,
+        # Returns Artist, Title, TrackId, PlaybackStatus
+        return artists.encode(self.language_code), title.encode(self.language_code), track_id, playback_status

@@ -6,6 +6,7 @@ from pyfiglet import Figlet
 
 from dbus_api import DbusAPI
 
+# DBUS Api
 dbus_api = DbusAPI()
 
 # Figlet
@@ -70,7 +71,7 @@ def main(stdscr):
             row_index += 1
 
         # Get song info
-        artist, title, track_id = dbus_api.get_spotify_now_playing()
+        artist, title, track_id, playback_status = dbus_api.get_spotify_now_playing()
 
         # Write artist
         row_index -= 1
@@ -81,6 +82,12 @@ def main(stdscr):
         row_index += 1
         title_text, title_pos = get_position(width, title, track_id)
         stdscr.addnstr(row_index, title_pos, title_text, width - 1)
+
+        if playback_status.lower() == "paused":
+            row_index += 1
+            playback_status = "(" + playback_status + ")"
+            playback_pos = int((width / 2) - (len(playback_status) / 2))
+            stdscr.addnstr(row_index, playback_pos, playback_status, len(playback_status))
 
         # Refresh to draw on screen
         stdscr.refresh()
