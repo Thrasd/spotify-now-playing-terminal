@@ -1,51 +1,49 @@
 import curses
-from time import sleep
+from time import sleep, time
 
 from pyfiglet import Figlet
 
-from dbus_api import DbusAPI
+from dbus_api import DbusAPI, DBusResult
+from text_scrolling import TextScrolling
 
 
 class Screen:
-    def __init__(self, title_text: str, dbus: DbusAPI, title_as_text=False, use_vlc=False):
-        # Title
-        self.title_text = title_text
-        self.title_as_text = title_as_text
-        self.title_text_ascii = Figlet(font='small').renderText(self.title_text).split('\n')
-
+    def __init__(self, title_text: str, dbus: DbusAPI, animation_speed: int, title_as_text=False, use_vlc=False):
         # Properties
+        self.title_as_text = title_as_text
+        self.title_text = title_text
         self.dbus_api = dbus
         self.use_vlc = use_vlc  # Use VLC? (NOTE: currently only experimental)
+        self.animation_speed = animation_speed
 
-        # Uhm, stuff?
-        self.pos_info = {'track_id': ''}
+        # Store information for current track
+        self.track_info = {'track_id': '', 'lines': [], 'playback_status': None}
 
-    # TODO bug in scrolling algorithm, it does not show the last character (Hardcoded extra spaces in the title/artist)
-    # TODO add option to define if we should 'hang' at the end/beginning for a few seconds before starting scroll again
-    def get_position(self, terminal_width, text, track_id):
-        # If we can show the entire text within the width, lets just do that
-        is_too_wide = terminal_width < len(text)
-        if not is_too_wide or track_id is None:
-            return text, int((terminal_width / 2) - (len(text) / 2))
+    def get_lines(self, result: DBusResult, screen_width: int):
+        # If it is not the same track, update the lines
+        if self.track_info['track_id'] != result.track_id:
+            self.track_info['track_id'] = result.track_id
+            self.track_info['lines'] = [TextScrolling(x, screen_width) for x in result.lines]
+            self.track_info['playback_status'] = None
 
-        # The title is too long, we need to do some horizontal text scrolling
-        if self.pos_info['track_id'] != track_id:
-            # If it is a new song, remove all previous information in the dictionary
-            self.pos_info = {'track_id': track_id}
+        # Show the paused text
+        if result.playback_status.lower() == 'paused':
+            if self.track_info['playback_status'] is None:
+                self.track_info['playback_status'] = TextScrolling('(Paused)', screen_width)
+        else:
+            self.track_info['playback_status'] = None
 
-        if text not in self.pos_info:
-            out_of_bounds_count = len(text) - terminal_width
-            self.pos_info[text] = {'all_text': text, 'oob_count': out_of_bounds_count, 'index': 0, 'direction': 1}
+        # Return the lines
+        if self.track_info['playback_status'] is not None:
+            return self.track_info['lines'] + [self.track_info['playback_status'], ]
+        return self.track_info['lines']
 
-        skip_begin = int(self.pos_info[text]['index'])
-        skip_end = int(self.pos_info[text]['oob_count']) - int(self.pos_info[text]['index'])
-
-        # TODO find a better way to store these information
-        new_text = self.pos_info[text]['all_text'][skip_begin:-skip_end]
-        self.pos_info[text]['index'] += self.pos_info[text]['direction']
-        if self.pos_info[text]['index'] >= self.pos_info[text]['oob_count'] - 1 or self.pos_info[text]['index'] == 0:
-            self.pos_info[text]['direction'] *= -1
-        return new_text, 1
+    def __init_title(self, screen_width: int):
+        if self.title_as_text:
+            self.title = TextScrolling(self.title_text, screen_width, is_multi_line=False)
+        else:
+            title_ascii = Figlet(font='small').renderText(self.title_text).split('\n')
+            self.title = TextScrolling(title_ascii, screen_width, is_multi_line=True)
 
     def run(self, stdscr):
         # Configure Curses
@@ -59,46 +57,30 @@ class Screen:
         # Terminal information
         height, width = stdscr.getmaxyx()
 
+        self.__init_title(width)
+
+        result = None
+        song_update_time = 1  # We want to update the song information once every second
+        last_song_update = 0
+
         # Do stuff
         while True:
             # Clear screen
             stdscr.clear()
 
-            if self.title_as_text:
-                title_pos = int((width / 2) - (len(self.title_text) / 2))
-                stdscr.addnstr(0, title_pos, self.title_text, len(self.title_text))
-                row_index = 1
-            else:
-                # Write ASCII art with the title
-                # TODO make sure the Now Playing ASCII art can scroll as well
-                np_text, np_pos = self.get_position(width, self.title_text_ascii[0], None)
-                row_index = -1
-                for val in self.title_text_ascii:
-                    row_index += 1
-                    stdscr.addstr(row_index, np_pos, str(val))
+            # Draw the title
+            row_index = self.title.draw_text(stdscr, 0)
 
-            artist, title, track_id, playback_status = self.dbus_api.get_vlc_now_playing() if self.use_vlc else self.dbus_api.get_spotify_now_playing()
-            # Get song info
+            # Get now playing information (But only once every second
+            if time() > (last_song_update + song_update_time):
+                result = self.dbus_api.get_vlc_now_playing() if self.use_vlc else self.dbus_api.get_spotify_now_playing()
+                last_song_update = time()
 
-            # Write artist
-            artist_text, artist_pos = self.get_position(width, artist, track_id)
-            stdscr.addnstr(row_index, artist_pos, artist_text, width - 1)
-            row_index += 1
-
-            # Write title
-            song_title_text, title_pos = self.get_position(width, title, track_id)
-            stdscr.addnstr(row_index, title_pos, song_title_text, width - 1)
-            row_index += 1
-
-            # Show if we have paused the music
-            if playback_status.lower() == "paused":
-                playback_status = "(" + playback_status + ")"
-                playback_pos = int((width / 2) - (len(playback_status) / 2))
-                stdscr.addnstr(row_index, playback_pos, playback_status, len(playback_status))
-                row_index += 1
+            for line in self.get_lines(result, width):
+                row_index = line.draw_text(stdscr, row_index)
 
             # Refresh to draw on screen
             stdscr.refresh()
 
-            # TODO define the scroll speed of the text and how fast we retrieve data from spotify
-            sleep(0.5)
+            # Sleep (This is our animation speed)
+            sleep(self.animation_speed)

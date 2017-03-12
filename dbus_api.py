@@ -4,6 +4,13 @@ import dbus
 from dbus import DBusException
 
 
+class DBusResult:
+    def __init__(self, track_id: str, playback_status: str, lines: []):
+        self.track_id = track_id
+        self.playback_status = playback_status
+        self.lines = lines
+
+
 class DbusAPI:
     def __init__(self):
         self.session_bus = dbus.SessionBus()
@@ -12,13 +19,13 @@ class DbusAPI:
         self.spotify_bus = None
         self.spotify_properties = None
         self.spotify_is_loaded = False
-        self.spotify_error_message = ("[Spotify not found]", "[Are you sure spotify is running?]", "spotify-not-running", "",)
+        self.spotify_error_message = DBusResult("spotify-not-running", "None", ["[Spotify not found]", "[Are you sure spotify is running?]"])
 
         # VLC Properties
         self.vlc_bus = None
         self.vlc_properties = None
         self.vlc_is_loaded = False
-        self.vlc_error_message = ("[VLC not found]", "[Are you sure VLC is running?]", "vlc-not-running", "",)
+        self.vlc_error_message = DBusResult("vlc-not-running", "None", ["[VLC not found]", "[Are you sure VLC is running?]"])
 
         # Stupid special characters, why can't we just use ASCII? :(
         locale.setlocale(locale.LC_ALL, '')
@@ -72,7 +79,7 @@ class DbusAPI:
         track_id = metadata['mpris:trackid'].split(':')[-1]
 
         # Returns Artist, Title, TrackId, PlaybackStatus
-        return artists.encode(self.language_code), title.encode(self.language_code), track_id, playback_status
+        return DBusResult(track_id, playback_status, [artists.encode(self.language_code), title.encode(self.language_code)])
 
     def get_vlc_now_playing(self):
         # Init VLC
@@ -100,4 +107,4 @@ class DbusAPI:
             return self.vlc_error_message
 
         # Returns Artist, Title, TrackId, PlaybackStatus
-        return artists.encode(self.language_code), title.encode(self.language_code), track_id, playback_status
+        return DBusResult(track_id, playback_status, [artists.encode(self.language_code), title.encode(self.language_code)])
