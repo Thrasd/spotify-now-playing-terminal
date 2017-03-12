@@ -12,6 +12,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-tas', '--title-as-text', action='store_true', default=False, dest='title_as_text', help='Show the title as normal text')
 parser.add_argument('-tt', '--title-text', action='store', default=None, dest='title_text', help='The title of the terminal window', nargs='+')
 parser.add_argument('-v', '--version', action='version', version='Version 0.0.1')
+parser.add_argument('-vlc', action='store_true', default=False, dest='vlc_as_input', help='Use VLC as input source')
 settings = parser.parse_args()
 
 # Properties
@@ -86,7 +87,7 @@ def main(stdscr):
                 row_index += 1
                 stdscr.addstr(row_index, np_pos, str(val))
 
-        artist, title, track_id, playback_status = dbus_api.get_spotify_now_playing()
+        artist, title, track_id, playback_status = dbus_api.get_vlc_now_playing() if settings.vlc_as_input else dbus_api.get_spotify_now_playing()
         # Get song info
 
         # Write artist
@@ -99,11 +100,12 @@ def main(stdscr):
         stdscr.addnstr(row_index, title_pos, song_title_text, width - 1)
         row_index += 1
 
+        # Show if we have paused the music
         if playback_status.lower() == "paused":
-            row_index += 1
             playback_status = "(" + playback_status + ")"
             playback_pos = int((width / 2) - (len(playback_status) / 2))
             stdscr.addnstr(row_index, playback_pos, playback_status, len(playback_status))
+            row_index += 1
 
         # Refresh to draw on screen
         stdscr.refresh()
