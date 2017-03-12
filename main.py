@@ -1,3 +1,4 @@
+import argparse
 import curses
 from curses import wrapper
 from time import sleep
@@ -6,12 +7,22 @@ from pyfiglet import Figlet
 
 from dbus_api import DbusAPI
 
+# Parse command line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('-tas', '--title-as-text', action='store_true', default=False, dest='title_as_text', help='Show the title as normal text')
+parser.add_argument('-tt', '--title-text', action='store', default=None, dest='title_text', help='The title of the terminal window', nargs='+')
+parser.add_argument('-v', '--version', action='version', version='Version 0.0.1')
+settings = parser.parse_args()
+
+# Properties
+title_text = "Now Playing" if settings.title_text is None else " ".join(settings.title_text)
+
 # DBUS Api
 dbus_api = DbusAPI()
 
 # Figlet
 figlet = Figlet(font='small')
-now_playing_text = figlet.renderText('Now Playing').split('\n')
+title_text_ascii = figlet.renderText(title_text).split('\n')
 
 pos_info = {'track_id': ''}
 
@@ -62,26 +73,31 @@ def main(stdscr):
         # Clear screen
         stdscr.clear()
 
-        # Write ASCII art with now playing
-        # TODO make sure the Now Playing ASCII art can scroll as well
-        np_text, np_pos = get_position(width, now_playing_text[0], None)
-        row_index = 0
-        for val in now_playing_text:
-            stdscr.addstr(row_index, np_pos, str(val))
-            row_index += 1
+        if settings.title_as_text:
+            title_pos = int((width / 2) - (len(title_text) / 2))
+            stdscr.addnstr(0, title_pos, title_text, len(title_text))
+            row_index = 1
+        else:
+            # Write ASCII art with the title
+            # TODO make sure the Now Playing ASCII art can scroll as well
+            np_text, np_pos = get_position(width, title_text_ascii[0], None)
+            row_index = -1
+            for val in title_text_ascii:
+                row_index += 1
+                stdscr.addstr(row_index, np_pos, str(val))
 
-        # Get song info
         artist, title, track_id, playback_status = dbus_api.get_spotify_now_playing()
+        # Get song info
 
         # Write artist
-        row_index -= 1
         artist_text, artist_pos = get_position(width, artist, track_id)
         stdscr.addnstr(row_index, artist_pos, artist_text, width - 1)
+        row_index += 1
 
         # Write title
+        song_title_text, title_pos = get_position(width, title, track_id)
+        stdscr.addnstr(row_index, title_pos, song_title_text, width - 1)
         row_index += 1
-        title_text, title_pos = get_position(width, title, track_id)
-        stdscr.addnstr(row_index, title_pos, title_text, width - 1)
 
         if playback_status.lower() == "paused":
             row_index += 1
