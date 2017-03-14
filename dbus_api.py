@@ -1,4 +1,5 @@
 import locale
+import uuid
 
 import dbus
 from dbus import DBusException
@@ -99,12 +100,12 @@ class DbusAPI:
 
         # Extract information from metadata
         try:
-            artists = metadata['xesam:title']
+            artist = metadata['xesam:title'].strip()
             # TODO remove hardcoded values for DR.DK P3 radio
-            title = metadata['vlc:nowplaying'].replace('Senest spillet: ', '')
-            track_id = artists
+            title = metadata['vlc:nowplaying'].replace('Senest spillet: ', '').strip()
+            track_id = uuid.uuid4()
         except KeyError:
             return self.vlc_error_message
 
         # Returns Artist, Title, TrackId, PlaybackStatus
-        return DBusResult(track_id, playback_status, [artists.encode(self.language_code), title.encode(self.language_code)])
+        return DBusResult(track_id, playback_status, [artist.encode(self.language_code), title.encode(self.language_code)])
